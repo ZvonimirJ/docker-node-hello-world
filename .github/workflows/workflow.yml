@@ -1,0 +1,53 @@
+name: cicd-node-app
+
+on:
+  push:
+    branches:
+      - '*'
+
+env:
+  OCI_CLI_USER: ${{ secrets.OCI_CLI_USER }}
+  OCI_CLI_TENANCY: ${{ secrets.OCI_CLI_TENANCY }}
+  OCI_CLI_FINGERPRINT: ${{ secrets.OCI_CLI_FINGERPRINT }}
+  OCI_CLI_KEY_CONTENT: ${{ secrets.OCI_CLI_KEY_CONTENT }}
+  OCI_CLI_REGION: ${{ secrets.OCI_CLI_REGION }}
+
+jobs:
+  build-and-push-job:
+    name: Build and Push Docker Image
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Log into OCIR
+        uses: oracle-actions/login-ocir@v1.2.1
+        with:
+          auth_token: ${{ secrets.OCI_AUTH_TOKEN }}
+
+      - name: Docker Build
+        run: |
+          docker build -t fra.ocir.io/frol67eoawud/node-hello-hostname-repo:latest .
+
+      - name: Docker Push
+        run: |
+          docker push fra.ocir.io/frol67eoawud/node-hello-hostname-repo:latest
+
+  deploy-job:
+    name: Deploy to Kubernetes
+    needs: build-and-push-job
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Configure Kubectl for OKE
+        uses: oracle-actions/configure-kubectl-oke@v1.5.0
+        with:
+          cluster: ${{ secrets.OKE_CLUSTER_OCID }}
+
+      - name: Deploy to Kubernetes
+        run: |
+          kubectl apply -f oke-app.yaml -n frol67eoawud
